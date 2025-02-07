@@ -1,0 +1,1 @@
+const mic = 'assets/icons/mic.png';
