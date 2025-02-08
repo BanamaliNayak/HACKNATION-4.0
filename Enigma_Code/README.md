@@ -36,7 +36,4 @@ Vision AI is a computer vision-based project designed to improve the daily lives
 4. *Time-Saving*: By automating the identification of coins, paper notes, and obstacles, users save time and effort, allowing them to focus on more important aspects of their daily activities.
 
 
-![Screenshot_20250208_070943](https://github.com/user-attachments/assets/b81382ee-68a0-4ac2-9176-06139f7526b1)
-![Screenshot_20250208_070959](https://github.com/user-attachments/assets/cb204c5b-21f0-4a7f-bf04-5b569810db3f)
-![Screenshot_20250208_070950](https://github.com/user-attachments/assets/4b835ea0-b1d1-4fa4-a22c-51f161972463)
-![Screenshot_20250208_070934](https://github.com/user-attachments/assets/968e33e1-95eb-47cf-8334-f357706144d4)
+![Screenshot_20250208_070943](https://github.com/user-attachments/assets/b81382ee-68a0-4ac2-9176-06139f7526b1) ![Screenshot_20250208_070959](https://github.com/user-attachments/assets/cb204c5b-21f0-4a7f-bf04-5b569810db3f) ![Screenshot_20250208_070950](https://github.com/user-attachments/assets/4b835ea0-b1d1-4fa4-a22c-51f161972463) ![Screenshot_20250208_070934](https://github.com/user-attachments/assets/968e33e1-95eb-47cf-8334-f357706144d4)
