@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:lottie/lottie.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-
 import '../constants/animation.dart';
 import '../constants/icons.dart';
 import '../services/http_service.dart';
 import '../widgets/particle_animation.dart';
 import '../widgets/wake_word_detector.dart';
+import 'camera_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,19 +18,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Whether the mic button animation (command capture) is active.
   bool _isMicActive = false;
-  // Holds the assistant's response to display.
+
+  // Holds any assistant response text.
   String _assistantResponse = "";
+
   // TTS engine instance.
   final FlutterTts _flutterTts = FlutterTts();
-  // Wake word detector instance.
-  WakeWordDetector? _wakeWordDetector;
 
-  // Speech recognition instance to capture the user's command.
+  // Speech recognition instance.
   late stt.SpeechToText _speechToText;
   bool _isListening = false;
   String _command = "";
+
+  // Wake word detector instance.
+  WakeWordDetector? _wakeWordDetector;
 
   @override
   void initState() {
@@ -38,17 +40,17 @@ class _HomePageState extends State<HomePage> {
     // Configure TTS.
     _flutterTts.setLanguage("en-US");
     _flutterTts.setPitch(1.0);
-
-    // Initialize the wake word detector.
-    _initializeWakeWordDetector();
-
-    // Initialize the speech recognizer for command capture.
+    // Initialize the speech recognizer.
     _speechToText = stt.SpeechToText();
+    // Initialize wake word detector.
+    _initializeWakeWordDetector();
   }
 
   Future<void> _initializeWakeWordDetector() async {
-    _wakeWordDetector = WakeWordDetector(onWakeWordDetected: _onWakeWordDetected);
+    _wakeWordDetector =
+        WakeWordDetector(onWakeWordDetected: _onWakeWordDetected);
     await _wakeWordDetector!.initialize();
+    _wakeWordDetector?.startListening();
   }
 
   @override
@@ -58,22 +60,14 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  /// Called when the wake word is detected or the mic button is tapped.
+  /// Called when the wake word is detected.
   void _onWakeWordDetected() {
-    debugPrint("Wake word detected or mic button pressed: vision");
-
-    // Pause the continuous wake word detection so that the microphone
-    // can be used to capture the user's command.
+    debugPrint("Wake word detected!");
     _wakeWordDetector?.stopListening();
-
     setState(() {
       _assistantResponse = "How can I assist you?";
     });
-    // Speak the assistant response.
     _flutterTts.speak("How can I assist you?");
-
-    // After a brief delay, clear the message, show the wave animation,
-    // and start listening for the user's command.
     Future.delayed(const Duration(seconds: 2), () {
       setState(() {
         _assistantResponse = "";
@@ -83,16 +77,16 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// Starts listening to capture the user's spoken command.
+  /// Starts continuous listening for the user's command.
   Future<void> _startListeningForCommand() async {
     bool available = await _speechToText.initialize(
-      onStatus: (status) => debugPrint("Command Speech status: $status"),
-      onError: (error) => debugPrint("Command Speech error: $error"),
+      onStatus: (status) => debugPrint("Speech status: $status"),
+      onError: (error) => debugPrint("Speech error: $error"),
     );
-
     if (available) {
       setState(() {
         _isListening = true;
+        _isMicActive = true;
         _command = "";
       });
       _speechToText.listen(
@@ -102,27 +96,25 @@ class _HomePageState extends State<HomePage> {
           });
           debugPrint("Command recognized: $_command");
           if (result.finalResult) {
-            // Stop listening and deactivate the wave animation.
             _speechToText.stop();
             setState(() {
               _isListening = false;
               _isMicActive = false;
             });
-            // Process the command.
             _callVoiceCommand(_command);
-            // Restart wake word detection.
-            _wakeWordDetector?.startListening();
+            Future.delayed(const Duration(seconds: 1), () {
+              _wakeWordDetector?.startListening();
+            });
           }
         },
       );
     } else {
-      debugPrint("Speech recognition for command unavailable or permission denied.");
-      // If command capture is not available, resume wake word detection.
+      debugPrint("Speech recognition unavailable or permission denied.");
       _wakeWordDetector?.startListening();
     }
   }
 
-  /// Cancels command capture and resumes wake word detection.
+  /// Stops the current listening session and resets the mic UI.
   void _cancelCommandCapture() {
     if (_isListening) {
       _speechToText.stop();
@@ -131,15 +123,41 @@ class _HomePageState extends State<HomePage> {
       _isListening = false;
       _isMicActive = false;
     });
-    // Resume wake word detection.
     _wakeWordDetector?.startListening();
   }
 
-  /// Calls the HTTP service with the recognized command and speaks the result.
+  /// Processes the recognized command by matching keywords and calling the corresponding API or local function.
   void _callVoiceCommand(String command) async {
+    debugPrint("Processing command: $command");
+    String lowerCommand = command.toLowerCase();
+    String response = "";
     try {
-      String response = await HttpService.callVoiceCommandAPI(command);
-      debugPrint("API result: $response");
+      if (lowerCommand.contains("coin")) {
+        // Instead of sending a text command, open the camera to capture an image.
+        Navigator.push(context,
+            MaterialPageRoute(builder: (context) => const CameraScreen()));
+        return;
+      } else if (lowerCommand.contains("object")) {
+        response = await HttpService.callObjectDetectionAPI(command);
+      } else if (lowerCommand.contains("currency")) {
+        response = await HttpService.callCurrencyDetectionAPI(command);
+      } else if (lowerCommand.contains("weather")) {
+        response = await HttpService.callWeatherAPI(command);
+      } else if (lowerCommand.contains("date")) {
+        DateTime now = DateTime.now();
+        String month = now.month.toString();
+        String day = now.day.toString();
+        String year = now.year.toString().substring(2); // two-digit year
+        response = "Today's date is $month/$day/$year.";
+      } else if (lowerCommand.contains("time")) {
+        DateTime now = DateTime.now();
+        String minute = now.minute < 10 ? "0${now.minute}" : "${now.minute}";
+        response = "The current time is ${now.hour}:$minute.";
+      } else {
+        response =
+            "Command not recognized. Please say coin, object, currency, weather, date, or time.";
+      }
+      debugPrint("Response: $response");
       _flutterTts.speak(response);
     } catch (e) {
       debugPrint("Error calling API: $e");
@@ -153,9 +171,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Your animated particle background.
           const ParticleAnimationWidget(),
-          // Positioned widget to display the assistant's response at the top.
           Positioned(
             top: 50,
             left: 0,
@@ -163,79 +179,76 @@ class _HomePageState extends State<HomePage> {
             child: Center(
               child: _assistantResponse.isNotEmpty
                   ? Text(
-                _assistantResponse,
-                style: const TextStyle(
-                  fontSize: 24,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
+                      _assistantResponse,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
                   : Container(),
             ),
           ),
-          // Custom mic icon or wave animation at the bottom center.
           Align(
             alignment: Alignment.bottomCenter,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
-                // Tapping: if wave (command capture active) then cancel capture;
-                // otherwise, start command capture.
-                child: GestureDetector(
-                  onTap: _isMicActive ? _cancelCommandCapture : _onWakeWordDetected,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _isMicActive
-                          ? Center(
-                        child: Lottie.asset(
-                          wave, // Wave animation asset for active command capture.
-                          width: 350,
-                          height: 350,
-                          fit: BoxFit.cover,
-                          repeat: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _isMicActive
+                        ? Lottie.asset(
+                            wave,
+                            width: 350,
+                            height: 350,
+                            fit: BoxFit.cover,
+                            repeat: true,
+                          )
+                        : SizedBox(
+                            height: 100,
+                            width: 100,
+                            child: FloatingActionButton(
+                              onPressed: () {
+                                _onWakeWordDetected();
+                              },
+                              shape: const CircleBorder(),
+                              child: Image.asset(mic),
+                            ),
+                          ),
+                    const SizedBox(height: 20),
+                    _isListening
+                        ? ElevatedButton(
+                            onPressed: _cancelCommandCapture,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                            ),
+                            child: const Text(
+                              "Stop Listening",
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          )
+                        : Container(),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 40,
+                      child: DefaultTextStyle(
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.white,
+                          fontFamily: 'Courier',
                         ),
-                      )
-                          : Padding(
-                        padding: const EdgeInsets.only(bottom: 45.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              height: 100,
-                              width: 100,
-                              child: FloatingActionButton(
-                                onPressed: _onWakeWordDetected,
-                                shape: const CircleBorder(),
-                                child: Image.asset(mic),
-                              ),
-                            ),
-                            SizedBox(
-                              height: 100,
-                              child: DefaultTextStyle(
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.white,
-                                  fontFamily: 'Courier',
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 40.0),
-                                  child: AnimatedTextKit(
-                                    repeatForever: true,
-                                    animatedTexts: [
-                                      FadeAnimatedText(
-                                        'PRESS TO SPEAK WITH THE VOICE ASSISTANT',
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
+                        child: AnimatedTextKit(
+                          repeatForever: true,
+                          animatedTexts: [
+                            FadeAnimatedText('SAY THE WAKE WORD TO ACTIVATE'),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
